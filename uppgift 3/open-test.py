@@ -1,20 +1,45 @@
 import csv
+import os
 import subprocess
 import locale
+from colorama import Fore, Style, init
 
+
+def truncate(text, length):
+   if len(text) > length:
+      return text[:length - 3] + "..."
+   else:
+      return text
 
 def format_currency(value):
    return locale.currency(value,grouping=True)
 
 
+def quantity_color(quantity):
+   if quantity < 5:
+      return Fore.RED
+   else:
+      return Fore.GREEN
+
+
 def list_products(products):
+   bar = Fore.CYAN + "│" + Style.RESET_ALL
+
+   print(Fore.CYAN + f"┌{'─' * 5}┬{'─' * 27}┬{'─' * 42}┬{'─' * 16}┬{'─' * 8}┐")
+   print(Fore.CYAN + Style.BRIGHT + f"│ {'#':>3} │ {'Namn':<25} │ {'Beskrivning':<40} │ {'Pris':>14} │ {'Antal':>6} │")
+   print(Fore.CYAN + f"├{'─' * 5}┼{'─' * 27}┼{'─' * 42}┼{'─' * 16}┼{'─' * 8}┤")
+
    for nr, product in enumerate(products, start=1):    #börjar på 1 istället för 0
 
-      name = product['name']
+      name = truncate(product['name'], 25)
+      desc = truncate(product['desc'], 40)
       price = format_currency(product['price'])
       quantity = product['quantity']
+      color = quantity_color(quantity)
 
-      print(f"{nr}) {name} \t {price} \t {quantity:<5}")
+      print(f"{bar} {Fore.CYAN}{nr:>3} {bar} {name:<25} {bar} {desc:<40} {bar} {Fore.YELLOW}{price:>14} {bar} {color}{quantity:>6} {bar}")
+
+   print(Fore.CYAN + f"└{'─' * 5}┴{'─' * 27}┴{'─' * 42}┴{'─' * 16}┴{'─' * 8}┘")
 
 
 def get_product(product_id, products):
@@ -29,12 +54,20 @@ def view_product(nr, products):
    subprocess.run('cls', shell=True)
 
    product = products[nr - 1]      #listan visas från 1 men börjar på 0
+   price = format_currency(product['price'])
+   quantity = str(product['quantity']) + " st"
+   color = quantity_color(product['quantity'])
+   bar = Fore.CYAN + "│" + Style.RESET_ALL
 
-   print(f"Id: \t\t {product['id']}")
-   print(f"Namn: \t\t {product['name']}")
-   print(f"Beskrivning: \t {product['desc']}")
-   print(f"Pris: \t\t {format_currency(product['price'])}")
-   print(f"Antal: \t\t {product['quantity']}")
+   print(Fore.CYAN + f"┌{'─' * 84}┐")
+   print(f"{bar} {Fore.CYAN}{Style.BRIGHT}{'PRODUKTINFO':^82} {bar}")
+   print(Fore.CYAN + f"├{'─' * 15}┬{'─' * 68}┤")
+   print(f"{bar} {Fore.CYAN}{'Id':<13} {bar} {product['id']:<66} {bar}")
+   print(f"{bar} {Fore.CYAN}{'Namn':<13} {bar} {product['name']:<66} {bar}")
+   print(f"{bar} {Fore.CYAN}{'Beskrivning':<13} {bar} {product['desc']:<66} {bar}")
+   print(f"{bar} {Fore.CYAN}{'Pris':<13} {bar} {Fore.YELLOW}{price:<66} {bar}")
+   print(f"{bar} {Fore.CYAN}{'Antal':<13} {bar} {color}{quantity:<66} {bar}")
+   print(Fore.CYAN + f"└{'─' * 15}┴{'─' * 68}┘")
 
 
 def new_product(products):
@@ -62,7 +95,7 @@ def new_product(products):
          }
    )
 
-   print(f"{name} lades till")
+   print(Fore.GREEN + f"{name} lades till")
 
 
 def edit_product(nr, products):
@@ -70,7 +103,7 @@ def edit_product(nr, products):
 
    product = products[nr - 1]
 
-   print("Tryck bara Enter för att behålla det gamla värdet")
+   print(Fore.YELLOW + "Tryck bara Enter för att behålla det gamla värdet")
 
    name = input(f"Namn ({product['name']}): ")
    desc = input(f"Beskrivning ({product['desc']}): ")
@@ -86,7 +119,7 @@ def edit_product(nr, products):
    if quantity != "":
       product['quantity'] = int(quantity)
 
-   print(f"{product['name']} ändrades")
+   print(Fore.GREEN + f"{product['name']} ändrades")
 
 
 def remove_product(nr, products):
@@ -96,53 +129,68 @@ def remove_product(nr, products):
 
    if answer.lower() == "j":
       products.remove(product)
-      print(f"{product['name']} togs bort")
+      print(Fore.GREEN + f"{product['name']} togs bort")
 
 
 def load_data(filename):
    products = []           #lista
 
-   with open(filename, 'r', encoding='utf-8') as file:       #öppnar en fil med read-rättighet
-      reader = csv.DictReader(file)
-      for row in reader:
-         product_id = int(row['id'])
-         name = row['name']
-         desc = row['desc']
-         price = float(row['price'])
-         quantity = int(row['quantity'])
+   try:
+      with open(filename, 'r', encoding='utf-8') as file:       #öppnar en fil med read-rättighet
+         reader = csv.DictReader(file)
+         for row in reader:
+            try:
+               product_id = int(row['id'])
+               name = row['name']
+               desc = row['desc']
+               price = float(row['price'])
+               quantity = int(row['quantity'])
+            except (ValueError, KeyError, TypeError):
+               print(Fore.RED + "En rad i filen hade fel data och hoppades över")
+               continue
 
-         products.append(
-               {
-                  "id": product_id,
-                  "name": name,
-                  "desc": desc,
-                  "price": price,
-                  "quantity": quantity
-               }
-         )
+            products.append(
+                  {
+                     "id": product_id,
+                     "name": name,
+                     "desc": desc,
+                     "price": price,
+                     "quantity": quantity
+                  }
+            )
+   except FileNotFoundError:
+      print(Fore.YELLOW + "Hittade ingen produktfil, en ny skapas när du sparar")
+   except (UnicodeDecodeError, csv.Error):
+      print(Fore.RED + "Filen kunde inte läsas")
 
    return products
 
 
 def save_data(filename, products):
-   with open(filename, 'w', encoding='utf-8', newline='') as file:     #öppnar en fil med write-rättighet
-      writer = csv.DictWriter(file, fieldnames=["id", "name", "desc", "price", "quantity"])
-      writer.writeheader()
-      writer.writerows(products)
+   try:
+      with open(filename, 'w', encoding='utf-8', newline='') as file:     #öppnar en fil med write-rättighet
+         writer = csv.DictWriter(file, fieldnames=["id", "name", "desc", "price", "quantity"])
+         writer.writeheader()
+         writer.writerows(products)
+   except PermissionError:
+      print(Fore.RED + "Kunde inte spara, är filen öppen i ett annat program?")
 
 
+init(autoreset=True)
 locale.setlocale(locale.LC_ALL, 'sv_SE.UTF-8')
+
+filename = os.path.join(os.path.dirname(__file__), 'db_products.csv')
 
 subprocess.run('cls',shell=True)
 
-products = load_data('db_products.csv')
+products = load_data(filename)
 
 
 while True:
    list_products(products)
 
-   print("-" * 140)
-   option = input("Vad vill du göra? [# = visa produkt | L = lägg till | T = ta bort | E = ändra | Q = avsluta] ")
+   print(Fore.CYAN + "[#] visa produkt | [L] lägg till | [T] ta bort | [E] ändra | [Q] avsluta")
+   option = input("Vad vill du göra? ")
 
    try:
       if option.isdigit(): # om det är siffror
@@ -151,38 +199,38 @@ while True:
          if 0 < idx <= len(products):
             view_product(idx, products)
          else:
-            print("Det finns ingen produkt med det numret")
+            print(Fore.RED + "Det finns ingen produkt med det numret")
 
       elif option.upper() == "L":
          new_product(products)
-         save_data('db_products.csv', products)
+         save_data(filename, products)
 
       elif option.upper() == "T":
          idx = int(input("Vilket nummer vill du ta bort? "))
 
          if 0 < idx <= len(products):
             remove_product(idx, products)
-            save_data('db_products.csv', products)
+            save_data(filename, products)
          else:
-            print("Det finns ingen produkt med det numret")
+            print(Fore.RED + "Det finns ingen produkt med det numret")
 
       elif option.upper() == "E":
          idx = int(input("Vilket nummer vill du ändra? "))
 
          if 0 < idx <= len(products):
             edit_product(idx, products)
-            save_data('db_products.csv', products)
+            save_data(filename, products)
          else:
-            print("Det finns ingen produkt med det numret")
+            print(Fore.RED + "Det finns ingen produkt med det numret")
 
       elif option.upper() == "Q":
          exit(0)
 
       else:
-         print("Ogiltigt val")
+         print(Fore.RED + "Ogiltigt val")
 
    except ValueError:      #om man skriver bokstäver där det ska vara siffror
-      print("Felaktig inmatning, försök igen")
+      print(Fore.RED + "Felaktig inmatning, försök igen")
 
    input() #bara vänta till tangentbordsklick
    subprocess.run('cls', shell=True)
